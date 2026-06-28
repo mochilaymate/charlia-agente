@@ -12,26 +12,35 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Test YCloud API connection by getting account info
-    const res = await fetch("https://api.ycloud.com/v2/whatsapp/account", {
+    // Test by listing WhatsApp phone numbers registered on the account
+    const res = await fetch("https://api.ycloud.com/v2/whatsapp/phoneNumbers?pageSize=5", {
       headers: { "X-API-Key": ycloud_api_key },
     });
 
     if (!res.ok) {
       const errorText = await res.text();
       return NextResponse.json(
-        { message: `YCloud error ${res.status}: ${errorText.slice(0, 100)}` },
-        { status: res.status }
+        { message: `✗ YCloud error ${res.status}: ${errorText.slice(0, 150)}` },
+        { status: 400 }
       );
     }
 
-    const account = await res.json();
+    const data = await res.json();
+    const numbers = (data.items ?? []) as Array<{ phoneNumber: string; displayName?: string }>;
+    const match = numbers.find(n => n.phoneNumber === phone_number);
+
+    if (numbers.length === 0) {
+      return NextResponse.json({ message: "✓ API Key válida pero sin números registrados en YCloud" });
+    }
+
     return NextResponse.json({
-      message: `✓ Conectado a YCloud. Teléfono registrado: ${account.whatsappPhoneNumberId || phone_number}`,
+      message: match
+        ? `✓ Conectado. Número ${phone_number} verificado en tu cuenta YCloud`
+        : `✓ API Key válida. Números disponibles: ${numbers.map(n => n.phoneNumber).join(", ")}`,
     });
   } catch (err) {
     return NextResponse.json(
-      { message: `Error de red: ${err instanceof Error ? err.message : "Desconocido"}` },
+      { message: `✗ Error de red: ${err instanceof Error ? err.message : "Desconocido"}` },
       { status: 500 }
     );
   }
