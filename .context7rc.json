@@ -1,0 +1,63 @@
+{
+  "auth": {
+    "apiKey": "${CONTEXT7_API_KEY}"
+  },
+  "cache": {
+    "directory": ".context7",
+    "ttl": 86400
+  },
+  "libraries": {
+    "nextjs": {
+      "name": "Next.js",
+      "versions": ["latest", "16.2.9"],
+      "docs": "https://nextjs.org/docs"
+    },
+    "react": {
+      "name": "React",
+      "versions": ["latest", "19.2.4"],
+      "docs": "https://react.dev"
+    },
+    "typescript": {
+      "name": "TypeScript",
+      "versions": ["latest", "5.x"],
+      "docs": "https://www.typescriptlang.org/docs"
+    },
+    "tailwindcss": {
+      "name": "Tailwind CSS",
+      "versions": ["latest", "4.x"],
+      "docs": "https://tailwindcss.com/docs"
+    },
+    "supabase": {
+      "name": "Supabase",
+      "versions": ["latest"],
+      "docs": "https://supabase.com/docs"
+    },
+    "openrouter": {
+      "name": "OpenRouter",
+      "versions": ["latest"],
+      "docs": "https://openrouter.ai/docs"
+    },
+    "highlevel": {
+      "name": "HighLevel API",
+      "versions": ["latest"],
+      "docs": "https://developers.gohighlevel.com/docs"
+    },
+    "ycloud": {
+      "name": "YCloud WhatsApp API",
+      "versions": ["latest"],
+      "docs": "https://docs.ycloud.com"
+    }
+  },
+  "preload": [
+    "nextjs",
+    "react",
+    "typescript",
+    "tailwindcss",
+    "supabase"
+  ],
+  "searchOptions": {
+    "includeExamples": true,
+    "includeDeprecations": true,
+    "maxResults": 10
+  }
+}

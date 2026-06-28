@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": ["@anthropic-ai/sdk", "--mcp-server", "supabase"],
+      "env": {
+        "SUPABASE_URL": "${NEXT_PUBLIC_SUPABASE_URL}",
+        "SUPABASE_SERVICE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
+      }
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["context7", "--mcp"],
+      "env": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}",
+        "CONTEXT7_CACHE_DIR": ".context7"
+      }
+    }
+  }
+}

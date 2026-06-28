@@ -5,6 +5,8 @@ export default function ChannelsPage() {
   const [form, setForm] = useState({ ycloud_api_key: "", phone_number: "", webhook_secret: "" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/settings/channels").then(r => r.ok ? r.json() : null).then(d => {
@@ -17,6 +19,27 @@ export default function ChannelsPage() {
     setSaving(true);
     await fetch("/api/settings/channels", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function testConnection() {
+    if (!form.ycloud_api_key || !form.phone_number) {
+      setTestResult({ ok: false, message: "Completá API Key y número de WhatsApp antes de probar" });
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/settings/channels/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ycloud_api_key: form.ycloud_api_key, phone_number: form.phone_number }),
+      });
+      const data = await res.json();
+      setTestResult({ ok: res.ok, message: data.message || (res.ok ? "✓ Conexión exitosa" : "✗ Error de conexión") });
+    } catch (err) {
+      setTestResult({ ok: false, message: `Error: ${err instanceof Error ? err.message : "Desconocido"}` });
+    }
+    setTesting(false);
   }
 
   return (
@@ -57,6 +80,18 @@ export default function ChannelsPage() {
         </code>
         <p className="text-xs" style={{ color: "var(--muted)" }}>Configurá esta URL en el panel de YCloud como webhook de eventos.</p>
       </div>
+
+      <button type="button" onClick={testConnection} disabled={testing}
+        className="w-full px-4 py-2 text-sm rounded-lg font-medium disabled:opacity-60"
+        style={{ background: "var(--surface-elevated)", color: "var(--primary)", border: "1px solid var(--primary)" }}>
+        {testing ? "Probando…" : "🔗 Probar conexión"}
+      </button>
+
+      {testResult && (
+        <div className="rounded-xl p-4" style={{ background: testResult.ok ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)", border: `1px solid ${testResult.ok ? "var(--success)" : "var(--destructive)"}` }}>
+          <p className="text-sm" style={{ color: testResult.ok ? "var(--success)" : "var(--destructive)" }}>{testResult.message}</p>
+        </div>
+      )}
     </form>
   );
 }
