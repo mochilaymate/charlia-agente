@@ -24,8 +24,13 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Find workspace by target phone number
-    const to = (payload.to ?? (payload.data as Record<string, string> | undefined)?.to ?? "") as string;
+    // YCloud v2 wraps the message in `whatsappInboundMessage` or `whatsappMessage`
+    const msgData = (
+      payload.whatsappInboundMessage ??
+      payload.whatsappMessage ??
+      payload.data
+    ) as Record<string, string> | undefined;
+    const to = (msgData?.to ?? payload.to ?? "") as string;
     if (!to) {
       return NextResponse.json({ error: "No target number" }, { status: 400 });
     }

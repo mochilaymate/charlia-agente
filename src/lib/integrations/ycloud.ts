@@ -70,14 +70,14 @@ export async function sendMedia(
 export function parseInboundWebhook(payload: Record<string, unknown>) {
   const type = payload.type as string;
   if (type !== "whatsapp.inbound_message.received") return null;
-  const data = (payload.data ?? payload) as Record<string, unknown>;
-  const msg = data as Record<string, unknown>;
+  // YCloud v2 wraps inbound messages in `whatsappInboundMessage`
+  const msg = (payload.whatsappInboundMessage ?? payload.data ?? payload) as Record<string, unknown>;
   return {
-    wamid: msg.id as string,
+    wamid: (msg.wamid ?? msg.id) as string,
     from: msg.from as string,
     to: msg.to as string,
-    timestamp: new Date((msg.sendTime ?? msg.timestamp) as string),
-    type: msg.type as string,
+    timestamp: new Date((msg.sendTime ?? msg.createTime ?? msg.timestamp) as string),
+    type: (msg.type as string) ?? "text",
     text: (msg.text as Record<string, string> | undefined)?.body,
     mediaLink: (msg.image ?? msg.audio ?? msg.video ?? msg.document ?? msg.sticker) as Record<string, string> | undefined,
   };
@@ -86,11 +86,12 @@ export function parseInboundWebhook(payload: Record<string, unknown>) {
 export function parseStatusWebhook(payload: Record<string, unknown>) {
   const type = payload.type as string;
   if (type !== "whatsapp.message.updated") return null;
-  const data = payload.data as Record<string, unknown>;
+  // YCloud v2 wraps in `whatsappMessage`
+  const msg = (payload.whatsappMessage ?? payload.data) as Record<string, unknown>;
   return {
-    wamid: data.id as string,
-    status: data.status as string,
-    to: data.to as string,
-    error: data.error as Record<string, unknown> | undefined,
+    wamid: (msg.wamid ?? msg.id) as string,
+    status: msg.status as string,
+    to: msg.to as string,
+    error: msg.error as Record<string, unknown> | undefined,
   };
 }
