@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* ── Charlia Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Dark theme (default) */
+  --background: #0f0f14;
+  --surface: #1a1a22;
+  --surface-elevated: #22222e;
+  --border: #2e2e3e;
+  --foreground: #e7e7ee;
+  --muted: #9191a8;
+  --primary: #6c4cf6;
+  --primary-hover: #5a3ce0;
+  --primary-foreground: #ffffff;
+  --accent: #6c4cf6;
+  --destructive: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+
+  /* Message bubbles */
+  --bubble-outbound: #6c4cf6;
+  --bubble-outbound-text: #ffffff;
+  --bubble-inbound: #22222e;
+  --bubble-inbound-text: #e7e7ee;
+}
+
+.light {
+  --background: #ffffff;
+  --surface: #f5f5fa;
+  --surface-elevated: #ededf5;
+  --border: #d4d4e0;
+  --foreground: #111118;
+  --muted: #6b6b80;
+  --primary: #6c4cf6;
+  --primary-hover: #5a3ce0;
+  --primary-foreground: #ffffff;
+  --accent: #6c4cf6;
+  --destructive: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+
+  --bubble-outbound: #6c4cf6;
+  --bubble-outbound-text: #ffffff;
+  --bubble-inbound: #ededf5;
+  --bubble-inbound-text: #111118;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+}
+html.light {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
