@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyYCloudSignature, parseInboundWebhook, parseStatusWebhook } from "@/lib/integrations/ycloud";
 import { normalizeE164 } from "@/lib/utils";
+import { runAgent } from "@/lib/agent/runner";
 
 export async function POST(req: NextRequest) {
   try {
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
       // Find or create conversation
       let { data: conv } = await supabase
         .from("conversations")
-        .select("id, buffer_messages")
+        .select("id, buffer_messages, ai_enabled, state")
         .eq("workspace_id", workspace.id)
         .eq("contact_id", contact.id)
         .maybeSingle();
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
             last_inbound_at: timestamp.toISOString(),
             last_message_at: timestamp.toISOString(),
           })
-          .select("id, buffer_messages")
+          .select("id, buffer_messages, ai_enabled, state")
           .single();
         if (convError) console.error("[ycloud-webhook] conv create error:", convError.message);
         conv = newConv;
@@ -152,6 +153,11 @@ export async function POST(req: NextRequest) {
       });
 
       console.log("[ycloud-webhook] message saved, conv:", conv.id);
+
+      // Trigger AI agent if enabled
+      if (conv.ai_enabled && conv.state === "ia_active") {
+        await runAgent(conv.id);
+      }
 
     } else if (type === "whatsapp.message.updated") {
       const status = parseStatusWebhook(payload);
