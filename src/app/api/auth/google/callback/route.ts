@@ -28,9 +28,9 @@ export async function GET(req: NextRequest) {
       },
     }, { onConflict: "workspace_id,tool_type" });
 
-    return NextResponse.redirect(new URL("/settings/agenda?connected=1", req.url));
+    return NextResponse.redirect(new URL("/agenda?connected=1", req.url));
   } catch (err) {
     console.error("[google-callback] error:", err);
-    return NextResponse.redirect(new URL("/settings/agenda?error=auth_failed", req.url));
+    return NextResponse.redirect(new URL("/agenda?error=auth_failed", req.url));
   }
 }
