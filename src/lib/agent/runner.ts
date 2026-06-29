@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendText } from "@/lib/integrations/ycloud";
 import { normalizeE164 } from "@/lib/utils";
+import { listEvents, createEvent, updateEvent, deleteEvent, checkOverlap, refreshAccessToken } from "@/lib/integrations/google-calendar";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const MAX_HISTORY = 20;
@@ -8,7 +9,8 @@ const MAX_HISTORY = 20;
 function buildSystemPrompt(
   businessInfo: Record<string, unknown> | null,
   kbDocs: Array<{ title: string; content: string }>,
-  contactName?: string
+  contactName?: string,
+  hasCalendar = false
 ): string {
   const biz = businessInfo ?? {};
 
@@ -40,9 +42,28 @@ SERVICIOS QUE OFRECEMOS:
 - Ordenamiento de información y listas de clientes/inventario
 - Búsqueda y recopilación rápida de información en internet
 - Diseño de paneles visuales sencillos para monitorear el negocio
-- Organización de agendas y calendarios${bizContext}${kb}${forbiddenStr}
+- Organización de agendas y calendarios${hasCalendar ? "\n\nAGENDA: Puedes ver, crear y cancelar citas usando las herramientas disponibles. Siempre verificá disponibilidad antes de crear una cita. Confirmá con el cliente los detalles (fecha, hora, servicio) antes de agendar." : ""}${bizContext}${kb}${forbiddenStr}
 
 CTA DE CIERRE: Cuando el cliente muestre interés real, invítalo con: "${cta}"${contactCtx}`;
+}
+
+async function getCalendarToken(workspaceId: string): Promise<string | null> {
+  const supabase = createAdminClient();
+  const { data: tool } = await supabase
+    .from("tool_configs").select("credentials, enabled")
+    .eq("workspace_id", workspaceId).eq("tool_type", "google_calendar").single();
+  if (!tool?.enabled) return null;
+  const creds = tool.credentials as Record<string, unknown>;
+  if (Date.now() > (creds.expires_at as number) - 60_000) {
+    try {
+      const r = await refreshAccessToken(creds.refresh_token as string);
+      await supabase.from("tool_configs")
+        .update({ credentials: { ...creds, access_token: r.access_token, expires_at: Date.now() + r.expires_in * 1000 } })
+        .eq("workspace_id", workspaceId).eq("tool_type", "google_calendar");
+      return r.access_token;
+    } catch { return null; }
+  }
+  return creds.access_token as string;
 }
 
 export async function runAgent(conversationId: string): Promise<void> {
@@ -68,6 +89,8 @@ export async function runAgent(conversationId: string): Promise<void> {
   const settings = (ws?.settings ?? {}) as Record<string, string>;
   const apiKey = settings.ycloud_api_key;
   const fromNumber = settings.phone_number;
+
+  console.log("[agent] settings apiKey:", apiKey ? "present" : "MISSING", "fromNumber:", fromNumber ?? "MISSING");
 
   if (!apiKey || !fromNumber) {
     console.error("[agent] Missing YCloud credentials for workspace", conv.workspace_id);
@@ -115,10 +138,13 @@ export async function runAgent(conversationId: string): Promise<void> {
     content: m.content ?? "",
   })).filter(m => m.content);
 
+  const calendarToken = await getCalendarToken(conv.workspace_id);
+
   const systemPrompt = buildSystemPrompt(
     bizInfo as Record<string, unknown> | null,
     kbDocs ?? [],
-    contact.name ?? undefined
+    contact.name ?? undefined,
+    !!calendarToken
   );
 
   // Call OpenRouter
@@ -128,45 +154,159 @@ export async function runAgent(conversationId: string): Promise<void> {
     return;
   }
 
+  // Calendar tools (only if connected)
+  const calendarTools = calendarToken ? [
+    {
+      type: "function",
+      function: {
+        name: "list_appointments",
+        description: "Lista las citas del calendario para un rango de fechas.",
+        parameters: {
+          type: "object",
+          properties: {
+            date_from: { type: "string", description: "Fecha inicio ISO (YYYY-MM-DD)" },
+            date_to: { type: "string", description: "Fecha fin ISO (YYYY-MM-DD)" },
+          },
+          required: ["date_from", "date_to"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_appointment",
+        description: "Crea una nueva cita en el calendario. Verificar disponibilidad primero.",
+        parameters: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            date: { type: "string", description: "YYYY-MM-DD" },
+            start_time: { type: "string", description: "HH:MM" },
+            end_time: { type: "string", description: "HH:MM" },
+            description: { type: "string" },
+          },
+          required: ["title", "date", "start_time", "end_time"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "cancel_appointment",
+        description: "Cancela o elimina una cita existente.",
+        parameters: {
+          type: "object",
+          properties: { event_id: { type: "string" } },
+          required: ["event_id"],
+        },
+      },
+    },
+  ] : [];
+
   let aiResponse: string | null = null;
   let inputTokens = 0;
   let outputTokens = 0;
   let cost = 0;
 
   try {
-    const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openrouterKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://charlia-agente.vercel.app",
-        "X-Title": "Charlia",
-      },
-      body: JSON.stringify({
+    const currentMessages: Array<{ role: string; content: string | null; tool_calls?: unknown[]; tool_call_id?: string; name?: string }> = [
+      { role: "system", content: systemPrompt },
+      ...chatMessages,
+    ];
+
+    let iterations = 0;
+    while (iterations < 5) {
+      iterations++;
+      const body: Record<string, unknown> = {
         model: process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
         models: [
           process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
           "mistralai/mistral-7b-instruct:free",
         ],
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...chatMessages,
-        ],
-        max_tokens: 300,
+        messages: currentMessages,
+        max_tokens: 400,
         usage: { include: true },
-      }),
-    });
+      };
+      if (calendarTools.length > 0) body.tools = calendarTools;
 
-    if (!res.ok) {
-      console.error("[agent] OpenRouter error:", res.status, await res.text());
-      return;
+      const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openrouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://whatsappagente.vercel.app",
+          "X-Title": "Charlia",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        console.error("[agent] OpenRouter error:", res.status, await res.text());
+        return;
+      }
+
+      const data = await res.json();
+      inputTokens += data.usage?.prompt_tokens ?? 0;
+      outputTokens += data.usage?.completion_tokens ?? 0;
+      cost += data.usage?.cost ?? 0;
+
+      const choice = data.choices?.[0];
+      if (!choice) break;
+
+      const msg = choice.message;
+
+      // If tool call requested
+      if (choice.finish_reason === "tool_calls" && msg.tool_calls?.length) {
+        currentMessages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
+
+        for (const tc of msg.tool_calls) {
+          let toolResult = "";
+          try {
+            const args = JSON.parse(tc.function.arguments ?? "{}");
+            if (tc.function.name === "list_appointments" && calendarToken) {
+              const timeMin = new Date(`${args.date_from}T00:00:00`).toISOString();
+              const timeMax = new Date(`${args.date_to}T23:59:59`).toISOString();
+              const evts = await listEvents(calendarToken, timeMin, timeMax);
+              toolResult = JSON.stringify(evts.items?.map((e: { id: string; summary: string; start: { dateTime: string }; end: { dateTime: string } }) => ({
+                id: e.id, title: e.summary,
+                start: e.start.dateTime, end: e.end.dateTime,
+              })) ?? []);
+            } else if (tc.function.name === "create_appointment" && calendarToken) {
+              const timeMin = new Date(`${args.date}T00:00:00`).toISOString();
+              const timeMax = new Date(`${args.date}T23:59:59`).toISOString();
+              const existing = await listEvents(calendarToken, timeMin, timeMax);
+              const overlaps = checkOverlap(
+                existing.items ?? [],
+                `${args.date}T${args.start_time}:00`,
+                `${args.date}T${args.end_time}:00`
+              );
+              if (overlaps) {
+                toolResult = JSON.stringify({ error: "Horario ocupado — hay solapamiento con una cita existente." });
+              } else {
+                const ev = await createEvent(calendarToken, {
+                  summary: args.title,
+                  description: args.description,
+                  start: { dateTime: `${args.date}T${args.start_time}:00`, timeZone: "Europe/Madrid" },
+                  end: { dateTime: `${args.date}T${args.end_time}:00`, timeZone: "Europe/Madrid" },
+                });
+                toolResult = JSON.stringify({ ok: true, event_id: ev.id, title: ev.summary });
+              }
+            } else if (tc.function.name === "cancel_appointment" && calendarToken) {
+              await deleteEvent(calendarToken, args.event_id);
+              toolResult = JSON.stringify({ ok: true });
+            }
+          } catch (e) {
+            toolResult = JSON.stringify({ error: String(e) });
+          }
+          currentMessages.push({ role: "tool", tool_call_id: tc.id, name: tc.function.name, content: toolResult });
+        }
+        continue;
+      }
+
+      // Final text response
+      aiResponse = msg.content?.trim() ?? null;
+      break;
     }
-
-    const data = await res.json();
-    aiResponse = data.choices?.[0]?.message?.content?.trim() ?? null;
-    inputTokens = data.usage?.prompt_tokens ?? 0;
-    outputTokens = data.usage?.completion_tokens ?? 0;
-    cost = data.usage?.cost ?? 0;
   } catch (err) {
     console.error("[agent] OpenRouter fetch error:", err);
     return;
