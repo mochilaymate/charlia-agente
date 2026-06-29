@@ -62,107 +62,103 @@ export async function POST(req: NextRequest) {
     // }
     console.log("[ycloud-webhook] workspace matched:", workspace.id, "— proceeding (sig check skipped)");
 
-    // Return 200 immediately; process async
-    (async () => {
-      try {
-        const type = payload.type as string;
+    // Process synchronously before returning — serverless kills async fire-and-forget
+    const type = payload.type as string;
 
-        if (type === "whatsapp.inbound_message.received") {
-          const inbound = parseInboundWebhook(payload);
-          if (!inbound) return;
+    if (type === "whatsapp.inbound_message.received") {
+      const inbound = parseInboundWebhook(payload);
+      if (!inbound) return NextResponse.json({ ok: true });
 
-          const { wamid, from, timestamp, type: msgType, text } = inbound;
+      const { wamid, from, timestamp, type: msgType, text } = inbound;
+      console.log("[ycloud-webhook] inbound wamid:", wamid, "from:", from);
 
-          // Idempotency — skip if wamid already exists
-          const { data: existing } = await supabase
-            .from("messages")
-            .select("id")
-            .eq("metadata->>'wamid'", wamid)
-            .maybeSingle();
-          if (existing) return;
+      // Idempotency
+      const { data: existing } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("metadata->>'wamid'", wamid)
+        .maybeSingle();
+      if (existing) return NextResponse.json({ ok: true, duplicate: true });
 
-          // Upsert contact
-          const phone = normalizeE164(from);
-          const { data: contact } = await supabase
-            .from("contacts")
-            .upsert({ workspace_id: workspace.id, phone }, { onConflict: "workspace_id,phone" })
-            .select("id")
-            .single();
-          if (!contact) return;
+      // Upsert contact
+      const phone = normalizeE164(from);
+      const { data: contact, error: contactError } = await supabase
+        .from("contacts")
+        .upsert({ workspace_id: workspace.id, phone }, { onConflict: "workspace_id,phone" })
+        .select("id")
+        .single();
+      if (contactError) console.error("[ycloud-webhook] contact error:", contactError.message);
+      if (!contact) return NextResponse.json({ error: "Contact upsert failed" }, { status: 500 });
 
-          // Find or create conversation
-          let { data: conv } = await supabase
-            .from("conversations")
-            .select("id, buffer_messages")
-            .eq("workspace_id", workspace.id)
-            .eq("contact_id", contact.id)
-            .maybeSingle();
+      // Find or create conversation
+      let { data: conv } = await supabase
+        .from("conversations")
+        .select("id, buffer_messages")
+        .eq("workspace_id", workspace.id)
+        .eq("contact_id", contact.id)
+        .maybeSingle();
 
-          if (!conv) {
-            const { data: newConv } = await supabase
-              .from("conversations")
-              .insert({
-                workspace_id: workspace.id,
-                contact_id: contact.id,
-                ai_enabled: true,
-                status: "active",
-                state: "ia_active",
-                window_open: true,
-                last_inbound_at: timestamp.toISOString(),
-                last_message_at: timestamp.toISOString(),
-              })
-              .select("id, buffer_messages")
-              .single();
-            conv = newConv;
-          } else {
-            await supabase
-              .from("conversations")
-              .update({
-                window_open: true,
-                last_inbound_at: timestamp.toISOString(),
-                last_message_at: timestamp.toISOString(),
-                last_buffer_time: timestamp.toISOString(),
-              })
-              .eq("id", conv.id);
-          }
-
-          if (!conv) return;
-
-          // Insert message
-          const content = text ?? (msgType !== "text" ? `[${msgType}]` : "");
-          await supabase.from("messages").insert({
-            conversation_id: conv.id,
-            sender_id: phone,
-            sender_type: "contact",
-            content,
-            media_type: msgType,
-            metadata: { wamid, ycloud_timestamp: timestamp.toISOString() },
-          });
-
-          // Append to buffer
-          const currentBuffer = (conv.buffer_messages as unknown[]) ?? [];
-          await supabase.from("conversations").update({
-            buffer_messages: [...currentBuffer, { wamid, content, type: msgType, ts: timestamp.toISOString() }],
-            last_buffer_time: new Date().toISOString(),
-          }).eq("id", conv.id);
-
-          await supabase.from("logs").insert({
+      if (!conv) {
+        const { data: newConv, error: convError } = await supabase
+          .from("conversations")
+          .insert({
             workspace_id: workspace.id,
-            conversation_id: conv.id,
-            event_type: "message_inbound",
-            level: "info",
-            details: { wamid, from, type: msgType },
-          });
-
-        } else if (type === "whatsapp.message.updated") {
-          const status = parseStatusWebhook(payload);
-          if (!status) return;
-          await supabase.rpc("update_message_status", { p_wamid: status.wamid, p_status: status.status }).maybeSingle();
-        }
-      } catch (err) {
-        console.error("[ycloud-webhook] async error", err);
+            contact_id: contact.id,
+            ai_enabled: true,
+            status: "active",
+            state: "ia_active",
+            window_open: true,
+            last_inbound_at: timestamp.toISOString(),
+            last_message_at: timestamp.toISOString(),
+          })
+          .select("id, buffer_messages")
+          .single();
+        if (convError) console.error("[ycloud-webhook] conv create error:", convError.message);
+        conv = newConv;
+      } else {
+        await supabase.from("conversations").update({
+          window_open: true,
+          last_inbound_at: timestamp.toISOString(),
+          last_message_at: timestamp.toISOString(),
+          last_buffer_time: timestamp.toISOString(),
+        }).eq("id", conv.id);
       }
-    })();
+
+      if (!conv) return NextResponse.json({ error: "Conversation failed" }, { status: 500 });
+
+      const content = text ?? (msgType !== "text" ? `[${msgType}]` : "");
+      const { error: msgError } = await supabase.from("messages").insert({
+        conversation_id: conv.id,
+        sender_id: phone,
+        sender_type: "contact",
+        content,
+        media_type: msgType,
+        metadata: { wamid, ycloud_timestamp: timestamp.toISOString() },
+      });
+      if (msgError) console.error("[ycloud-webhook] msg insert error:", msgError.message);
+
+      const currentBuffer = (conv.buffer_messages as unknown[]) ?? [];
+      await supabase.from("conversations").update({
+        buffer_messages: [...currentBuffer, { wamid, content, type: msgType, ts: timestamp.toISOString() }],
+        last_buffer_time: new Date().toISOString(),
+      }).eq("id", conv.id);
+
+      await supabase.from("logs").insert({
+        workspace_id: workspace.id,
+        conversation_id: conv.id,
+        event_type: "message_inbound",
+        level: "info",
+        details: { wamid, from, type: msgType },
+      });
+
+      console.log("[ycloud-webhook] message saved, conv:", conv.id);
+
+    } else if (type === "whatsapp.message.updated") {
+      const status = parseStatusWebhook(payload);
+      if (status) {
+        await supabase.rpc("update_message_status", { p_wamid: status.wamid, p_status: status.status }).maybeSingle();
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
