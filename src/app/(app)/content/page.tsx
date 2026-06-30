@@ -48,7 +48,7 @@ export default function ContentPage() {
       const res = await fetch("/api/content/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, niche, topic, tone }),
+        body: JSON.stringify({ platform, niche, topic, tone, imageBase64: uploadedImage }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error generando contenido");
@@ -148,12 +148,38 @@ export default function ContentPage() {
           </div>
         </div>
 
+        {/* Image upload */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>
+            Imagen <span style={{ fontWeight: 400 }}>(opcional — la IA escribe el copy basándose en ella)</span>
+          </label>
+          {uploadedImage ? (
+            <div className="relative rounded-xl overflow-hidden">
+              <img src={uploadedImage} alt="Imagen seleccionada" className="w-full max-h-36 object-cover" />
+              <button onClick={() => setUploadedImage(null)}
+                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{ background: "var(--destructive)", color: "white" }}>✕</button>
+              <div className="absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-medium text-white"
+                style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.6))" }}>
+                ✓ La IA analizará esta imagen
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current?.click()}
+              className="w-full py-3 rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-colors"
+              style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "2px dashed var(--border)" }}>
+              📁 Subir imagen o archivo
+            </button>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+        </div>
+
         {error && <p className="text-xs" style={{ color: "var(--destructive)" }}>{error}</p>}
 
         <button onClick={generate} disabled={loading}
           className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
           style={{ background: "var(--primary)", color: "white" }}>
-          {loading ? "Generando…" : "✨ Generar post"}
+          {loading ? "Generando…" : uploadedImage ? "✨ Generar copy de la imagen" : "✨ Generar post"}
         </button>
       </div>
 
@@ -213,37 +239,26 @@ export default function ContentPage() {
             <div className="rounded-2xl p-5 space-y-3"
               style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}>
               <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Imagen</p>
-
-              {uploadedImage ? (
-                <div className="relative">
-                  <img src={uploadedImage} alt="Imagen del post" className="w-full max-h-64 object-cover rounded-xl" />
-                  <button onClick={() => setUploadedImage(null)}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs"
-                    style={{ background: "var(--destructive)", color: "white" }}>✕</button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="rounded-xl p-4 text-sm"
-                    style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
-                    <p className="font-medium text-xs mb-1" style={{ color: "var(--muted)" }}>Prompt sugerido para generar imagen:</p>
-                    <p className="text-xs italic" style={{ color: "var(--foreground)" }}>{result.image_prompt}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => fileRef.current?.click()}
-                      className="flex-1 py-2 text-sm rounded-xl font-medium"
-                      style={{ background: "var(--surface)", color: "var(--foreground)", border: "1px solid var(--border)" }}>
-                      📁 Subir imagen propia
-                    </button>
-                    <button
-                      className="flex-1 py-2 text-sm rounded-xl font-medium opacity-50 cursor-not-allowed"
-                      style={{ background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)" }}
-                      title="Próximamente — requiere API key de imagen">
-                      🎨 Generar con IA (próximamente)
-                    </button>
-                  </div>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+              {uploadedImage && (
+                <img src={uploadedImage} alt="Imagen del post" className="w-full max-h-64 object-cover rounded-xl" />
+              )}
+              {result.image_prompt && (
+                <div className="rounded-xl p-3" style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
+                  <p className="text-[10px] font-medium mb-1" style={{ color: "var(--muted)" }}>Prompt para generar imagen con IA:</p>
+                  <p className="text-xs italic" style={{ color: "var(--foreground)" }}>{result.image_prompt}</p>
                 </div>
               )}
+              <div className="flex gap-2">
+                <button onClick={() => fileRef.current?.click()}
+                  className="flex-1 py-2 text-xs rounded-xl font-medium"
+                  style={{ background: "var(--surface)", color: "var(--foreground)", border: "1px solid var(--border)" }}>
+                  📁 {uploadedImage ? "Cambiar imagen" : "Subir imagen"}
+                </button>
+                <button className="flex-1 py-2 text-xs rounded-xl font-medium opacity-40 cursor-not-allowed"
+                  style={{ background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)" }}>
+                  🎨 Generar con IA (próx.)
+                </button>
+              </div>
             </div>
 
             {/* Posting times */}

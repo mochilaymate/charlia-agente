@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { platform, niche, topic, tone, language = "es" } = body;
+  const { platform, niche, topic, tone, language = "es", imageBase64 } = body;
 
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   if (!openrouterKey) return NextResponse.json({ error: "No OpenRouter key" }, { status: 500 });
@@ -54,8 +54,9 @@ export async function POST(req: NextRequest) {
 Creás contenido auténtico, atractivo y adaptado a cada plataforma. Conocés las tendencias actuales del mercado hispanohablante.
 Respondés siempre en JSON válido con el formato exacto solicitado.`;
 
-  const userPrompt = `Creá un post para ${platform} para un negocio de ${niche}.
+  const textPrompt = `Creá un post para ${platform} para un negocio de ${niche}.
 
+${imageBase64 ? "IMPORTANTE: Analizá la imagen adjunta y escribí el copy basándote en lo que ves en ella." : ""}
 Tema/idea: ${topic || "contenido relevante y trending para el nicho"}
 Tono: ${tone}
 Idioma: ${language === "es" ? "español" : language}
@@ -63,7 +64,7 @@ Idioma: ${language === "es" ? "español" : language}
 Devolvé SOLO este JSON (sin markdown, sin explicaciones):
 {
   "post": "texto completo del post, adaptado al límite de caracteres de ${platform}, con emojis estratégicos",
-  "hashtags": ["hashtag1", "hashtag2", ...] (máx 15, sin #),
+  "hashtags": ["hashtag1", "hashtag2"],
   "image_prompt": "descripción en inglés para generar una imagen que acompañe este post (fotorrealista, profesional)",
   "trending_ideas": [
     {"idea": "idea de contenido trending", "why": "por qué funciona ahora"},
@@ -72,6 +73,22 @@ Devolvé SOLO este JSON (sin markdown, sin explicaciones):
   ],
   "tips": "un tip específico para maximizar el alcance de este post en ${platform}"
 }`;
+
+  // Build message content — use vision if image provided
+  const userContent = imageBase64
+    ? [
+        { type: "text", text: textPrompt },
+        { type: "image_url", image_url: { url: imageBase64 } },
+      ]
+    : textPrompt;
+
+  // Use vision model when image is attached, otherwise text model
+  const textModel = process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free";
+  const visionModel = "meta-llama/llama-3.2-11b-vision-instruct:free";
+
+  const models = imageBase64
+    ? [visionModel, "google/gemma-3-4b-it:free"]
+    : [textModel, "mistralai/mistral-7b-instruct:free"];
 
   try {
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
@@ -83,21 +100,21 @@ Devolvé SOLO este JSON (sin markdown, sin explicaciones):
         "X-Title": "Charlia Content",
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
-        models: [
-          process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
-          "mistralai/mistral-7b-instruct:free",
-        ],
+        model: models[0],
+        models,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "user", content: userContent },
         ],
         max_tokens: 1000,
         usage: { include: true },
       }),
     });
 
-    if (!res.ok) return NextResponse.json({ error: `OpenRouter: ${res.status}` }, { status: 500 });
+    if (!res.ok) {
+      const errText = await res.text();
+      return NextResponse.json({ error: `OpenRouter: ${res.status} — ${errText}` }, { status: 500 });
+    }
 
     const data = await res.json();
     const raw = data.choices?.[0]?.message?.content?.trim() ?? "";
