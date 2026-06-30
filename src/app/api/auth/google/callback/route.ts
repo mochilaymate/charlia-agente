@@ -15,30 +15,25 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeCode(code);
     const supabase = createAdminClient();
 
-    const payload = {
-      workspace_id: workspaceId,
-      tool_type: "google_calendar",
-      enabled: true,
-      config: { calendar_id: "primary" },
-      credentials: {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: Date.now() + tokens.expires_in * 1000,
-      },
-    };
+    // Store Google Calendar tokens in workspaces.settings (avoids tool_type enum issues)
+    const { data: ws, error: wsErr } = await supabase.from("workspaces")
+      .select("settings").eq("id", workspaceId).single();
+    if (wsErr) console.error("[google-callback] fetch workspace error:", wsErr);
 
-    const { data: existing } = await supabase.from("tool_configs")
-      .select("id").eq("workspace_id", workspaceId).eq("tool_type", "google_calendar").single();
-
-    if (existing) {
-      const { error } = await supabase.from("tool_configs")
-        .update({ enabled: true, config: payload.config, credentials: payload.credentials })
-        .eq("id", existing.id);
-      if (error) console.error("[google-callback] update error:", error);
-    } else {
-      const { error } = await supabase.from("tool_configs").insert(payload);
-      if (error) console.error("[google-callback] insert error:", error);
-    }
+    const currentSettings = (ws?.settings as Record<string, unknown>) ?? {};
+    const { error: updateErr } = await supabase.from("workspaces")
+      .update({
+        settings: {
+          ...currentSettings,
+          google_calendar: {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_at: Date.now() + tokens.expires_in * 1000,
+          },
+        },
+      })
+      .eq("id", workspaceId);
+    if (updateErr) console.error("[google-callback] update workspace error:", updateErr);
 
     return NextResponse.redirect(new URL("/agenda?connected=1", req.url));
   } catch (err) {

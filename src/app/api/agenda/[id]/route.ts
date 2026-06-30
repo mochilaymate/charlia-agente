@@ -5,19 +5,20 @@ import { updateEvent, deleteEvent, refreshAccessToken } from "@/lib/integrations
 
 async function getValidToken(workspaceId: string) {
   const supabase = createAdminClient();
-  const { data: tool } = await supabase
-    .from("tool_configs").select("credentials")
-    .eq("workspace_id", workspaceId).eq("tool_type", "google_calendar").single();
-  if (!tool) return null;
-  const creds = tool.credentials as Record<string, unknown>;
-  if (Date.now() > (creds.expires_at as number) - 60_000) {
-    const r = await refreshAccessToken(creds.refresh_token as string);
-    await supabase.from("tool_configs")
-      .update({ credentials: { ...creds, access_token: r.access_token, expires_at: Date.now() + r.expires_in * 1000 } })
-      .eq("workspace_id", workspaceId).eq("tool_type", "google_calendar");
+  const { data: ws } = await supabase
+    .from("workspaces").select("settings").eq("id", workspaceId).single();
+  if (!ws) return null;
+  const gcal = (ws.settings as Record<string, unknown>)?.google_calendar as Record<string, unknown> | undefined;
+  if (!gcal?.access_token) return null;
+  if (Date.now() > (gcal.expires_at as number) - 60_000) {
+    const r = await refreshAccessToken(gcal.refresh_token as string);
+    const currentSettings = (ws.settings as Record<string, unknown>) ?? {};
+    await supabase.from("workspaces").update({
+      settings: { ...currentSettings, google_calendar: { ...gcal, access_token: r.access_token, expires_at: Date.now() + r.expires_in * 1000 } },
+    }).eq("id", workspaceId);
     return r.access_token;
   }
-  return creds.access_token as string;
+  return gcal.access_token as string;
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
