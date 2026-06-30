@@ -5,12 +5,16 @@ interface GEvent {
   id: string;
   summary: string;
   description?: string;
-  start: { dateTime: string };
-  end: { dateTime: string };
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
   attendees?: Array<{ email: string; displayName?: string }>;
 }
 
+function getdt(ev: GEvent["start"]) {
+  return ev.dateTime ?? (ev.date ? ev.date + "T12:00:00" : "");
+}
 function fmt(dt: string) {
+  if (!dt.includes("T")) return "Todo el día";
   return new Date(dt).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
 }
 function fmtDate(dt: string) {
@@ -86,8 +90,8 @@ export default function AgendaPage() {
     if (!newDate) return;
     setRescheduling(true);
     for (const ev of emergencyEvents) {
-      const origStart = new Date(ev.start.dateTime);
-      const origEnd = new Date(ev.end.dateTime);
+      const origStart = new Date(getdt(ev.start));
+      const origEnd = new Date(getdt(ev.end));
       const duration = origEnd.getTime() - origStart.getTime();
       const newStart = new Date(`${newDate}T${origStart.toTimeString().slice(0, 5)}:00`);
       const newEnd = new Date(newStart.getTime() + duration);
@@ -127,7 +131,7 @@ export default function AgendaPage() {
   }
 
   const grouped = events.reduce<Record<string, GEvent[]>>((acc, ev) => {
-    const day = ev.start.dateTime.slice(0, 10);
+    const day = getdt(ev.start).slice(0, 10);
     if (!acc[day]) acc[day] = [];
     acc[day].push(ev);
     return acc;
@@ -168,7 +172,7 @@ export default function AgendaPage() {
               <div>
                 <p className="font-medium text-sm" style={{ color: "var(--foreground)" }}>{ev.summary}</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                  {fmt(ev.start.dateTime)} – {fmt(ev.end.dateTime)}
+                  {fmt(getdt(ev.start))} – {fmt(getdt(ev.end))}
                 </p>
                 {ev.attendees?.map(a => (
                   <p key={a.email} className="text-xs mt-0.5" style={{ color: "var(--primary)" }}>
@@ -251,7 +255,7 @@ export default function AgendaPage() {
                     <div key={ev.id} className="flex justify-between p-3 rounded-lg"
                       style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}>
                       <span className="text-sm" style={{ color: "var(--foreground)" }}>{ev.summary}</span>
-                      <span className="text-xs" style={{ color: "var(--muted)" }}>{fmt(ev.start.dateTime)}</span>
+                      <span className="text-xs" style={{ color: "var(--muted)" }}>{fmt(getdt(ev.start))}</span>
                     </div>
                   ))}
                 </div>
