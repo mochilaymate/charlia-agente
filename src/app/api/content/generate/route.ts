@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { FREE_TEXT_MODELS, FREE_VISION_MODELS } from "@/lib/ai/models";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
@@ -82,13 +83,7 @@ Devolvé SOLO este JSON (sin markdown, sin explicaciones):
       ]
     : textPrompt;
 
-  // Use vision model when image is attached, otherwise text model
-  const textModel = process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free";
-  const visionModel = "meta-llama/llama-3.2-11b-vision-instruct:free";
-
-  const models = imageBase64
-    ? [visionModel, "google/gemma-3-4b-it:free"]
-    : [textModel, "mistralai/mistral-7b-instruct:free"];
+  const models = imageBase64 ? FREE_VISION_MODELS : FREE_TEXT_MODELS;
 
   try {
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {

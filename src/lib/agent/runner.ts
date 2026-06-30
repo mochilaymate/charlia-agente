@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendText } from "@/lib/integrations/ycloud";
 import { normalizeE164 } from "@/lib/utils";
 import { listEvents, createEvent, updateEvent, deleteEvent, checkOverlap, refreshAccessToken } from "@/lib/integrations/google-calendar";
+import { FREE_TEXT_MODELS } from "@/lib/ai/models";
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const MAX_HISTORY = 20;
@@ -219,11 +220,8 @@ export async function runAgent(conversationId: string): Promise<void> {
     while (iterations < 5) {
       iterations++;
       const body: Record<string, unknown> = {
-        model: process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
-        models: [
-          process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
-          "mistralai/mistral-7b-instruct:free",
-        ],
+        model: FREE_TEXT_MODELS[0],
+        models: FREE_TEXT_MODELS,
         messages: currentMessages,
         max_tokens: 400,
         usage: { include: true },
@@ -330,7 +328,7 @@ export async function runAgent(conversationId: string): Promise<void> {
     sender_type: "ai",
     content: aiResponse,
     media_type: "text",
-    metadata: { model: process.env.OPENROUTER_DEFAULT_MODEL },
+    metadata: { model: FREE_TEXT_MODELS[0] },
   }).select("id").single();
 
   // Update conversation last_message_at
@@ -341,7 +339,7 @@ export async function runAgent(conversationId: string): Promise<void> {
   // Log agent execution
   await supabase.from("agent_executions").insert({
     conversation_id: conversationId,
-    model: process.env.OPENROUTER_DEFAULT_MODEL ?? "meta-llama/llama-3.1-8b-instruct:free",
+    model: FREE_TEXT_MODELS[0],
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cost,
