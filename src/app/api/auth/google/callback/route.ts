@@ -15,8 +15,7 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeCode(code);
     const supabase = createAdminClient();
 
-    // Store tokens in tool_configs
-    await supabase.from("tool_configs").upsert({
+    const payload = {
       workspace_id: workspaceId,
       tool_type: "google_calendar",
       enabled: true,
@@ -26,7 +25,20 @@ export async function GET(req: NextRequest) {
         refresh_token: tokens.refresh_token,
         expires_at: Date.now() + tokens.expires_in * 1000,
       },
-    }, { onConflict: "workspace_id,tool_type" });
+    };
+
+    const { data: existing } = await supabase.from("tool_configs")
+      .select("id").eq("workspace_id", workspaceId).eq("tool_type", "google_calendar").single();
+
+    if (existing) {
+      const { error } = await supabase.from("tool_configs")
+        .update({ enabled: true, config: payload.config, credentials: payload.credentials })
+        .eq("id", existing.id);
+      if (error) console.error("[google-callback] update error:", error);
+    } else {
+      const { error } = await supabase.from("tool_configs").insert(payload);
+      if (error) console.error("[google-callback] insert error:", error);
+    }
 
     return NextResponse.redirect(new URL("/agenda?connected=1", req.url));
   } catch (err) {
