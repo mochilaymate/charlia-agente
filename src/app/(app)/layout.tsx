@@ -12,9 +12,17 @@ export default async function AppLayout({
 
   if (!user) redirect("/auth/login");
 
+  const { data: dbUser } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const isAdmin = dbUser?.role === "admin";
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--background)" }}>
-      <MainNav />
+      <MainNav isAdmin={isAdmin} />
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>
   );

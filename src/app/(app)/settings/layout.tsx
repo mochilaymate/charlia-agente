@@ -1,17 +1,26 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
 const NAV = [
-  { href: "/settings", label: "General", exact: true },
-  { href: "/settings/business-info", label: "Info del negocio" },
-  { href: "/settings/prompts", label: "Prompts IA" },
-  { href: "/settings/templates", label: "Plantillas" },
-  { href: "/settings/knowledge-base", label: "Base de conocimiento" },
-  { href: "/settings/tools", label: "Tools / Conectores" },
-  { href: "/settings/channels", label: "Canales (YCloud)" },
-  { href: "/settings/team", label: "Equipo" },
+  { href: "/settings", label: "General", labelEn: "General", exact: true },
+  { href: "/settings/business-info", label: "Info del negocio", labelEn: "Business Info" },
+  { href: "/settings/prompts", label: "Prompts IA", labelEn: "AI Prompts" },
+  { href: "/settings/templates", label: "Plantillas", labelEn: "Templates" },
+  { href: "/settings/knowledge-base", label: "Base de conocimiento", labelEn: "Knowledge Base" },
+  { href: "/settings/tools", label: "Tools / Conectores", labelEn: "Tools / Connectors" },
+  { href: "/settings/channels", label: "Canales (YCloud)", labelEn: "Channels (YCloud)" },
+  { href: "/settings/team", label: "Equipo", labelEn: "Team" },
 ];
 
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
+
+  const { data: dbUser } = await supabase.from("users").select("role").eq("id", user.id).single();
+  if (dbUser?.role !== "admin") redirect("/inbox");
+
   return (
     <div className="flex h-full">
       <nav className="w-52 shrink-0 border-r flex flex-col pt-4 px-2 gap-0.5"
