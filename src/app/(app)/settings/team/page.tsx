@@ -34,7 +34,7 @@ export default function TeamPage() {
       <div>
         <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>Gestión de equipo</h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          Invitá usuarios por email. Recibirán un enlace para crear su contraseña.
+          Invitá usuarios por email. Recibirán sus credenciales de acceso con una contraseña temporal.
         </p>
       </div>
 
