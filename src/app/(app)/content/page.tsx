@@ -1,15 +1,21 @@
 "use client";
 import { useState, useRef } from "react";
+import { useLanguage } from "@/lib/i18n";
 
-const PLATFORMS = [
+const PLATFORMS_ES = [
   { id: "instagram", label: "Instagram", icon: "📸", limit: "2200 caracteres" },
   { id: "linkedin", label: "LinkedIn", icon: "💼", limit: "3000 caracteres" },
   { id: "tiktok", label: "TikTok", icon: "🎵", limit: "2200 caracteres" },
   { id: "facebook", label: "Facebook", icon: "👥", limit: "63.206 caracteres" },
   { id: "twitter", label: "Twitter/X", icon: "🐦", limit: "280 caracteres" },
 ];
-
-const TONES = ["Profesional", "Casual", "Motivacional", "Educativo", "Humorístico", "Inspirador", "Urgente"];
+const PLATFORMS_EN = [
+  { id: "instagram", label: "Instagram", icon: "📸", limit: "2,200 characters" },
+  { id: "linkedin", label: "LinkedIn", icon: "💼", limit: "3,000 characters" },
+  { id: "tiktok", label: "TikTok", icon: "🎵", limit: "2,200 characters" },
+  { id: "facebook", label: "Facebook", icon: "👥", limit: "63,206 characters" },
+  { id: "twitter", label: "Twitter/X", icon: "🐦", limit: "280 characters" },
+];
 
 const NICHES = [
   "Bienestar y salud", "Real estate / Propiedades", "Restaurante / Gastronomía",
@@ -28,6 +34,8 @@ interface GeneratedContent {
 }
 
 export default function ContentPage() {
+  const { t, lang } = useLanguage();
+  const PLATFORMS = lang === "en" ? PLATFORMS_EN : PLATFORMS_ES;
   const [platform, setPlatform] = useState("instagram");
   const [niche, setNiche] = useState("");
   const [topic, setTopic] = useState("");
@@ -40,7 +48,7 @@ export default function ContentPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function generate() {
-    if (!niche) { setError("Seleccioná tu nicho"); return; }
+    if (!niche) { setError(lang === "en" ? "Select your niche" : "Seleccioná tu nicho"); return; }
     setLoading(true);
     setError("");
     setResult(null);
@@ -85,13 +93,13 @@ export default function ContentPage() {
         style={{ borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
 
         <div>
-          <h1 className="text-base font-bold" style={{ color: "var(--foreground)" }}>Crear contenido</h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>IA genera el post listo para publicar</p>
+          <h1 className="text-base font-bold" style={{ color: "var(--foreground)" }}>{lang === "en" ? "Create content" : "Crear contenido"}</h1>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{lang === "en" ? "AI generates the post ready to publish" : "IA genera el post listo para publicar"}</p>
         </div>
 
         {/* Platform */}
         <div className="space-y-2">
-          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>Plataforma</label>
+          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{t.content.platform}</label>
           <div className="grid grid-cols-1 gap-1.5">
             {PLATFORMS.map(p => (
               <button key={p.id} onClick={() => setPlatform(p.id)}
@@ -111,11 +119,11 @@ export default function ContentPage() {
 
         {/* Niche */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>Tu nicho</label>
+          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{t.content.niche}</label>
           <select value={niche} onChange={e => setNiche(e.target.value)}
             className="w-full px-3 py-2 text-sm rounded-lg outline-none"
             style={{ background: "var(--surface-elevated)", color: "var(--foreground)", border: "1px solid var(--border)" }}>
-            <option value="">Seleccioná tu nicho…</option>
+            <option value="">{t.content.selectNiche}</option>
             {NICHES.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
@@ -123,7 +131,7 @@ export default function ContentPage() {
         {/* Topic */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>
-            Tema o idea <span style={{ color: "var(--muted)", fontWeight: 400 }}>(opcional)</span>
+            {lang === "en" ? "Topic or idea" : "Tema o idea"} <span style={{ color: "var(--muted)", fontWeight: 400 }}>{lang === "en" ? "(optional)" : "(opcional)"}</span>
           </label>
           <textarea value={topic} onChange={e => setTopic(e.target.value)}
             placeholder="Ej: beneficios del ayuno intermitente, cómo elegir una propiedad, oferta de verano..."
@@ -134,15 +142,15 @@ export default function ContentPage() {
 
         {/* Tone */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>Tono</label>
+          <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{t.content.tone}</label>
           <div className="flex flex-wrap gap-1.5">
-            {TONES.map(t => (
-              <button key={t} onClick={() => setTone(t)}
+            {t.content.tonesArray.map(toneOpt => (
+              <button key={toneOpt} onClick={() => setTone(toneOpt)}
                 className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
-                style={tone === t
+                style={toneOpt === tone
                   ? { background: "var(--primary)", color: "white" }
                   : { background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-                {t}
+                {toneOpt}
               </button>
             ))}
           </div>
@@ -151,7 +159,7 @@ export default function ContentPage() {
         {/* Image upload */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>
-            Imagen <span style={{ fontWeight: 400 }}>(opcional — la IA escribe el copy basándose en ella)</span>
+            {lang === "en" ? "Image" : "Imagen"} <span style={{ fontWeight: 400 }}>{lang === "en" ? "(optional — AI writes copy based on it)" : "(opcional — la IA escribe el copy basándose en ella)"}</span>
           </label>
           {uploadedImage ? (
             <div className="relative rounded-xl overflow-hidden">
@@ -161,14 +169,14 @@ export default function ContentPage() {
                 style={{ background: "var(--destructive)", color: "white" }}>✕</button>
               <div className="absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-medium text-white"
                 style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.6))" }}>
-                ✓ La IA analizará esta imagen
+                {t.content.imageAI}
               </div>
             </div>
           ) : (
             <button onClick={() => fileRef.current?.click()}
               className="w-full py-3 rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-colors"
               style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "2px dashed var(--border)" }}>
-              📁 Subir imagen o archivo
+              {t.content.uploadFile}
             </button>
           )}
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
@@ -179,7 +187,7 @@ export default function ContentPage() {
         <button onClick={generate} disabled={loading}
           className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
           style={{ background: "var(--primary)", color: "white" }}>
-          {loading ? "Generando…" : uploadedImage ? "✨ Generar copy de la imagen" : "✨ Generar post"}
+          {loading ? t.content.generating : uploadedImage ? t.content.generateCopy : t.content.generatePost}
         </button>
       </div>
 
@@ -188,17 +196,15 @@ export default function ContentPage() {
         {!result && !loading && (
           <div className="flex flex-col items-center justify-center h-full gap-3 opacity-40">
             <div className="text-5xl">✨</div>
-            <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>Configurá y generá tu primer post</p>
-            <p className="text-xs text-center max-w-xs" style={{ color: "var(--muted)" }}>
-              Seleccioná la plataforma, tu nicho y el tono. La IA crea el texto, hashtags, imagen sugerida y el mejor horario para publicar.
-            </p>
+            <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{t.content.emptyTitle}</p>
+            <p className="text-xs text-center max-w-xs" style={{ color: "var(--muted)" }}>{t.content.emptyDesc}</p>
           </div>
         )}
 
         {loading && (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Creando contenido para {selectedPlatform.label}…</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t.content.creatingFor} {selectedPlatform.label}…</p>
           </div>
         )}
 
@@ -216,7 +222,7 @@ export default function ContentPage() {
                 <button onClick={copyPost}
                   className="text-xs px-3 py-1.5 rounded-lg font-medium"
                   style={{ background: copied ? "var(--primary)" : "var(--surface)", color: copied ? "white" : "var(--muted)", border: "1px solid var(--border)" }}>
-                  {copied ? "✓ Copiado" : "Copiar todo"}
+                  {copied ? `✓ ${t.content.copied}` : t.content.copyAll}
                 </button>
               </div>
               <textarea
@@ -238,13 +244,13 @@ export default function ContentPage() {
             {/* Image section */}
             <div className="rounded-2xl p-5 space-y-3"
               style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}>
-              <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Imagen</p>
+              <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{t.content.image}</p>
               {uploadedImage && (
                 <img src={uploadedImage} alt="Imagen del post" className="w-full max-h-64 object-cover rounded-xl" />
               )}
               {result.image_prompt && (
                 <div className="rounded-xl p-3" style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
-                  <p className="text-[10px] font-medium mb-1" style={{ color: "var(--muted)" }}>Prompt para generar imagen con IA:</p>
+                  <p className="text-[10px] font-medium mb-1" style={{ color: "var(--muted)" }}>{t.content.promptLabel}</p>
                   <p className="text-xs italic" style={{ color: "var(--foreground)" }}>{result.image_prompt}</p>
                 </div>
               )}
@@ -252,11 +258,11 @@ export default function ContentPage() {
                 <button onClick={() => fileRef.current?.click()}
                   className="flex-1 py-2 text-xs rounded-xl font-medium"
                   style={{ background: "var(--surface)", color: "var(--foreground)", border: "1px solid var(--border)" }}>
-                  📁 {uploadedImage ? "Cambiar imagen" : "Subir imagen"}
+                  📁 {uploadedImage ? t.content.changeImage : t.content.uploadImage2}
                 </button>
                 <button className="flex-1 py-2 text-xs rounded-xl font-medium opacity-40 cursor-not-allowed"
                   style={{ background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-                  🎨 Generar con IA (próx.)
+                  {t.content.generateAI}
                 </button>
               </div>
             </div>
@@ -267,9 +273,9 @@ export default function ContentPage() {
                 style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}>
                 <div className="flex items-center gap-2">
                   <span className="text-base">🕐</span>
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Mejores horarios para publicar</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{t.content.postingTimes}</p>
                 </div>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>Basado en datos de engagement para {niche} en {selectedPlatform.label}</p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{t.content.basedOn} {niche} {t.content.in} {selectedPlatform.label}</p>
                 <div className="flex flex-wrap gap-2">
                   {result.posting_times.map((t, i) => (
                     <span key={i} className="text-xs px-3 py-1.5 rounded-full font-medium"
@@ -292,9 +298,9 @@ export default function ContentPage() {
                 style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}>
                 <div className="flex items-center gap-2">
                   <span className="text-base">🔥</span>
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Ideas de contenido trending</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{t.content.trendingIdeas}</p>
                 </div>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>Sugerencias de la IA para tu nicho ahora</p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{lang === "en" ? "AI suggestions for your niche right now" : "Sugerencias de la IA para tu nicho ahora"}</p>
                 <div className="space-y-2">
                   {result.trending_ideas.map((item, i) => (
                     <div key={i} className="p-3 rounded-xl cursor-pointer transition-colors hover:opacity-80"
@@ -302,7 +308,7 @@ export default function ContentPage() {
                       onClick={() => { setTopic(item.idea); }}>
                       <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{item.idea}</p>
                       <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{item.why}</p>
-                      <p className="text-[10px] mt-1 font-medium" style={{ color: "var(--primary)" }}>Usar esta idea →</p>
+                      <p className="text-[10px] mt-1 font-medium" style={{ color: "var(--primary)" }}>{t.content.useTrend}</p>
                     </div>
                   ))}
                 </div>
@@ -313,7 +319,7 @@ export default function ContentPage() {
             <button onClick={generate} disabled={loading}
               className="w-full py-2.5 rounded-xl text-sm font-medium"
               style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-              🔄 Regenerar post
+              {t.content.regenerate}
             </button>
           </div>
         )}

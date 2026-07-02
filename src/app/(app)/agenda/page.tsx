@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useLanguage } from "@/lib/i18n";
 
 interface GEvent {
   id: string;
@@ -15,12 +16,12 @@ type View = "list" | "week" | "month";
 function getdt(ev: GEvent["start"]) {
   return ev.dateTime ?? (ev.date ? ev.date + "T12:00:00" : "");
 }
-function fmt(dt: string) {
-  if (!dt || !dt.includes("T")) return "Todo el día";
-  return new Date(dt).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+function fmt(dt: string, lang: string) {
+  if (!dt || !dt.includes("T")) return lang === "en" ? "All day" : "Todo el día";
+  return new Date(dt).toLocaleTimeString(lang === "en" ? "en" : "es", { hour: "2-digit", minute: "2-digit" });
 }
-function fmtDate(dt: string) {
-  return new Date(dt).toLocaleDateString("es", { weekday: "short", day: "numeric", month: "short" });
+function fmtDate(dt: string, lang: string) {
+  return new Date(dt).toLocaleDateString(lang === "en" ? "en" : "es", { weekday: "short", day: "numeric", month: "short" });
 }
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -33,10 +34,11 @@ function startOfWeek(d: Date) {
   return s;
 }
 
-const DAYS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const MONTHS_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
 export default function AgendaPage() {
+  const { t, lang } = useLanguage();
+  const DAYS = t.agenda.days;
+  const MONTHS = t.agenda.months;
   const [view, setView] = useState<View>("list");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<GEvent[]>([]);
@@ -91,10 +93,10 @@ export default function AgendaPage() {
     if (view === "week") {
       const s = startOfWeek(anchor);
       const e = new Date(s.getTime() + 6 * 86400000);
-      return `${s.getDate()} ${MONTHS_ES[s.getMonth()].slice(0,3)} – ${e.getDate()} ${MONTHS_ES[e.getMonth()].slice(0,3)} ${e.getFullYear()}`;
+      return `${s.getDate()} ${MONTHS[s.getMonth()].slice(0,3)} – ${e.getDate()} ${MONTHS[e.getMonth()].slice(0,3)} ${e.getFullYear()}`;
     }
-    if (view === "month") return `${MONTHS_ES[anchor.getMonth()]} ${anchor.getFullYear()}`;
-    return "Próximos 30 días";
+    if (view === "month") return `${MONTHS[anchor.getMonth()]} ${anchor.getFullYear()}`;
+    return t.agenda.next30Days;
   }
 
   async function createEvent(e: React.FormEvent) {
@@ -118,7 +120,7 @@ export default function AgendaPage() {
   }
 
   async function deleteEvent(id: string) {
-    if (!confirm("¿Eliminar esta cita?")) return;
+    if (!confirm(t.agenda.confirmDelete)) return;
     await fetch(`/api/agenda/${id}`, { method: "DELETE" });
     await load(anchor, view);
   }
@@ -161,20 +163,18 @@ export default function AgendaPage() {
     return events.filter(ev => isSameDay(new Date(getdt(ev.start)), d));
   }
 
-  if (loading) return <div className="p-8 text-sm" style={{ color: "var(--muted)" }}>Cargando agenda…</div>;
+  if (loading) return <div className="p-8 text-sm" style={{ color: "var(--muted)" }}>{t.agenda.loading}</div>;
 
   if (!connected) {
     return (
       <div className="p-8 flex flex-col items-center gap-4 max-w-md mx-auto mt-16">
         <div className="text-4xl">📅</div>
-        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>Conectá tu Google Calendar</h1>
-        <p className="text-sm text-center" style={{ color: "var(--muted)" }}>
-          Conectá tu calendario para que Charlia pueda agendar, modificar y cancelar citas directamente desde WhatsApp.
-        </p>
+        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>{lang === "en" ? "Connect your Google Calendar" : "Conectá tu Google Calendar"}</h1>
+        <p className="text-sm text-center" style={{ color: "var(--muted)" }}>{t.agenda.connectDesc}</p>
         <a href="/api/auth/google"
           className="px-6 py-3 rounded-xl font-medium text-sm"
           style={{ background: "var(--primary)", color: "white" }}>
-          Conectar Google Calendar
+          {t.agenda.connectCalendar}
         </a>
       </div>
     );
@@ -213,7 +213,7 @@ export default function AgendaPage() {
       style={{ background: "var(--primary)", opacity: 0.9 }}
     >
       <span className={`truncate font-medium ${small ? "text-[10px]" : "text-xs"}`} style={{ color: "white" }}>
-        {!small && <span className="opacity-75 mr-1">{fmt(getdt(ev.start))}</span>}
+        {!small && <span className="opacity-75 mr-1">{fmt(getdt(ev.start), lang)}</span>}
         {ev.summary}
       </span>
       {!small && (
@@ -227,7 +227,7 @@ export default function AgendaPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>Agenda</h1>
+          <h1 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>{t.agenda.title}</h1>
           {/* View tabs */}
           <div className="flex rounded-lg overflow-hidden text-xs" style={{ border: "1px solid var(--border)" }}>
             {(["list", "week", "month"] as View[]).map(v => (
@@ -236,7 +236,7 @@ export default function AgendaPage() {
                 style={view === v
                   ? { background: "var(--primary)", color: "white" }
                   : { background: "var(--surface)", color: "var(--muted)" }}>
-                {v === "list" ? "Lista" : v === "week" ? "Semana" : "Mes"}
+                {v === "list" ? t.agenda.listView : v === "week" ? t.agenda.weekView : t.agenda.monthView}
               </button>
             ))}
           </div>
@@ -255,7 +255,7 @@ export default function AgendaPage() {
                 style={{ background: "var(--surface-elevated)", color: "var(--foreground)", border: "1px solid var(--border)" }}>›</button>
               <button onClick={() => setAnchor(new Date())}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>Hoy</button>
+                style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>{t.agenda.today}</button>
             </>
           )}
           {view === "list" && <span className="text-sm" style={{ color: "var(--muted)" }}>{navLabel()}</span>}
@@ -263,12 +263,12 @@ export default function AgendaPage() {
           <button onClick={() => setShowEmergency(true)}
             className="px-3 py-1.5 text-xs rounded-lg font-medium"
             style={{ background: "var(--destructive)", color: "white" }}>
-            🚨 Emergencia
+            🚨 {lang === "en" ? "Emergency" : "Emergencia"}
           </button>
           <button onClick={() => setShowNew(true)}
             className="px-3 py-1.5 text-xs rounded-lg font-medium"
             style={{ background: "var(--primary)", color: "white" }}>
-            + Nueva cita
+            + {t.agenda.newEvent}
           </button>
         </div>
       </div>
@@ -280,11 +280,11 @@ export default function AgendaPage() {
         {view === "list" && (
           <div className="p-6 max-w-3xl space-y-4">
             {Object.keys(grouped).length === 0 ? (
-              <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>No hay citas próximas</p>
+              <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>{t.agenda.noEvents}</p>
             ) : Object.entries(grouped).map(([day, dayEvents]) => (
               <div key={day} className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-                  {fmtDate(day + "T12:00:00")}
+                  {fmtDate(day + "T12:00:00", lang)}
                 </p>
                 {dayEvents.map(ev => (
                   <div key={ev.id} className="flex items-start justify-between p-4 rounded-xl"
@@ -292,7 +292,7 @@ export default function AgendaPage() {
                     <div>
                       <p className="font-medium text-sm" style={{ color: "var(--foreground)" }}>{ev.summary}</p>
                       <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                        {fmt(getdt(ev.start))} – {fmt(getdt(ev.end))}
+                        {fmt(getdt(ev.start), lang)} – {fmt(getdt(ev.end), lang)}
                       </p>
                       {ev.attendees?.map(a => (
                         <p key={a.email} className="text-xs mt-0.5" style={{ color: "var(--primary)" }}>
@@ -319,7 +319,7 @@ export default function AgendaPage() {
                 const isToday = isSameDay(d, today);
                 return (
                   <div key={i} className="py-3 text-center" style={{ borderRight: i < 6 ? "1px solid var(--border)" : undefined }}>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "var(--muted)" }}>{DAYS_ES[i]}</p>
+                    <p className="text-xs uppercase tracking-wide" style={{ color: "var(--muted)" }}>{DAYS[i]}</p>
                     <p className={`text-lg font-bold mt-0.5 w-9 h-9 rounded-full flex items-center justify-center mx-auto ${isToday ? "text-white" : ""}`}
                       style={isToday ? { background: "var(--primary)", color: "white" } : { color: "var(--foreground)" }}>
                       {d.getDate()}
@@ -353,7 +353,7 @@ export default function AgendaPage() {
         {view === "month" && (
           <div className="h-full flex flex-col">
             <div className="grid grid-cols-7 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
-              {DAYS_ES.map(d => (
+              {DAYS.map(d => (
                 <div key={d} className="py-2 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{d}</div>
               ))}
             </div>
@@ -376,7 +376,7 @@ export default function AgendaPage() {
                     </p>
                     {dayEvs.slice(0, MAX).map(ev => <EventPill key={ev.id} ev={ev} small />)}
                     {dayEvs.length > MAX && (
-                      <p className="text-[10px] pl-1" style={{ color: "var(--muted)" }}>+{dayEvs.length - MAX} más</p>
+                      <p className="text-[10px] pl-1" style={{ color: "var(--muted)" }}>+{dayEvs.length - MAX} {lang === "en" ? "more" : "más"}</p>
                     )}
                   </div>
                 );
@@ -391,14 +391,14 @@ export default function AgendaPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <form onSubmit={createEvent} className="w-full max-w-md p-6 rounded-2xl space-y-4"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>Nueva cita</h2>
+            <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>{t.agenda.newEvent}</h2>
             {[
-              { key: "summary", label: "Título", type: "text", required: true },
-              { key: "description", label: "Descripción", type: "text", required: false },
-              { key: "date", label: "Fecha", type: "date", required: true },
-              { key: "startTime", label: "Hora inicio", type: "time", required: true },
-              { key: "endTime", label: "Hora fin", type: "time", required: true },
-              { key: "attendeeEmail", label: "Email del cliente (opcional)", type: "email", required: false },
+              { key: "summary", label: lang === "en" ? "Title" : "Título", type: "text", required: true },
+              { key: "description", label: t.agenda.description, type: "text", required: false },
+              { key: "date", label: lang === "en" ? "Date" : "Fecha", type: "date", required: true },
+              { key: "startTime", label: lang === "en" ? "Start time" : "Hora inicio", type: "time", required: true },
+              { key: "endTime", label: lang === "en" ? "End time" : "Hora fin", type: "time", required: true },
+              { key: "attendeeEmail", label: lang === "en" ? "Client email (optional)" : "Email del cliente (opcional)", type: "email", required: false },
             ].map(({ key, label, type, required }) => (
               <div key={key} className="space-y-1">
                 <label className="text-xs" style={{ color: "var(--muted)" }}>{label}</label>
@@ -413,12 +413,12 @@ export default function AgendaPage() {
               <button type="button" onClick={() => setShowNew(false)}
                 className="px-4 py-2 text-sm rounded-lg"
                 style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-                Cancelar
+                {t.agenda.cancel}
               </button>
               <button type="submit" disabled={saving}
                 className="px-4 py-2 text-sm rounded-lg font-medium disabled:opacity-60"
                 style={{ background: "var(--primary)", color: "white" }}>
-                {saving ? "Guardando…" : "Crear cita"}
+                {saving ? t.common.loading : lang === "en" ? "Create appointment" : "Crear cita"}
               </button>
             </div>
           </form>
@@ -430,19 +430,17 @@ export default function AgendaPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="w-full max-w-lg p-6 rounded-2xl space-y-4"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <h2 className="font-semibold" style={{ color: "var(--destructive)" }}>🚨 Reprogramación de emergencia</h2>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Seleccioná el día afectado y el nuevo día. Todas las citas se moverán manteniendo sus horarios.
-            </p>
+            <h2 className="font-semibold" style={{ color: "var(--destructive)" }}>🚨 {t.agenda.emergency}</h2>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t.agenda.emergencyDesc}</p>
             <div className="space-y-1">
-              <label className="text-xs" style={{ color: "var(--muted)" }}>Día a cancelar</label>
+              <label className="text-xs" style={{ color: "var(--muted)" }}>{t.agenda.affectedDay}</label>
               <div className="flex gap-2">
                 <input type="date" value={emergencyDate} onChange={e => setEmergencyDate(e.target.value)}
                   className="flex-1 px-3 py-2 text-sm rounded-lg outline-none"
                   style={{ background: "var(--surface-elevated)", color: "var(--foreground)", border: "1px solid var(--border)" }} />
                 <button onClick={loadEmergencyDay}
                   className="px-3 py-2 text-sm rounded-lg"
-                  style={{ background: "var(--primary)", color: "white" }}>Ver citas</button>
+                  style={{ background: "var(--primary)", color: "white" }}>{lang === "en" ? "View appointments" : "Ver citas"}</button>
               </div>
             </div>
             {emergencyEvents.length > 0 && (
@@ -452,12 +450,12 @@ export default function AgendaPage() {
                     <div key={ev.id} className="flex justify-between p-3 rounded-lg"
                       style={{ background: "var(--surface-elevated)", border: "1px solid var(--border)" }}>
                       <span className="text-sm" style={{ color: "var(--foreground)" }}>{ev.summary}</span>
-                      <span className="text-xs" style={{ color: "var(--muted)" }}>{fmt(getdt(ev.start))}</span>
+                      <span className="text-xs" style={{ color: "var(--muted)" }}>{fmt(getdt(ev.start), lang)}</span>
                     </div>
                   ))}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs" style={{ color: "var(--muted)" }}>Nuevo día</label>
+                  <label className="text-xs" style={{ color: "var(--muted)" }}>{t.agenda.newDay}</label>
                   <input type="date" id="newDay"
                     className="w-full px-3 py-2 text-sm rounded-lg outline-none"
                     style={{ background: "var(--surface-elevated)", color: "var(--foreground)", border: "1px solid var(--border)" }} />
@@ -468,14 +466,14 @@ export default function AgendaPage() {
                 }} disabled={rescheduling}
                   className="w-full py-2 text-sm rounded-lg font-medium disabled:opacity-60"
                   style={{ background: "var(--destructive)", color: "white" }}>
-                  {rescheduling ? "Reprogramando…" : `Mover ${emergencyEvents.length} citas al nuevo día`}
+                  {rescheduling ? t.agenda.moving : `${t.agenda.moveAll} (${emergencyEvents.length})`}
                 </button>
               </>
             )}
             <button onClick={() => { setShowEmergency(false); setEmergencyEvents([]); }}
               className="w-full py-2 text-sm rounded-lg"
               style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-              Cancelar
+              {t.agenda.cancel}
             </button>
           </div>
         </div>

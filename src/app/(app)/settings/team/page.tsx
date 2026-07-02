@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useLanguage } from "@/lib/i18n";
 
 export default function TeamPage() {
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"manager" | "agent" | "viewer">("agent");
   const [status, setStatus] = useState<{ ok?: string; error?: string } | null>(null);
@@ -22,7 +24,7 @@ export default function TeamPage() {
     setLoading(false);
 
     if (!res.ok) {
-      setStatus({ error: data.error ?? "Error al enviar invitación" });
+      setStatus({ error: data.error ?? t.team.errorDefault });
     } else {
       setStatus({ ok: data.message });
       setEmail("");
@@ -32,10 +34,8 @@ export default function TeamPage() {
   return (
     <div className="p-8 max-w-lg space-y-8">
       <div>
-        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>Gestión de equipo</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          Invitá usuarios por email. Recibirán sus credenciales de acceso con una contraseña temporal.
-        </p>
+        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>{t.team.title}</h1>
+        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{t.team.subtitle}</p>
       </div>
 
       <form onSubmit={handleInvite} className="space-y-4">
@@ -52,7 +52,7 @@ export default function TeamPage() {
 
         <div className="space-y-1">
           <label className="block text-sm font-medium" style={{ color: "var(--foreground)" }}>
-            Email del usuario
+            {t.team.emailLabel}
           </label>
           <input
             type="email"
@@ -67,7 +67,7 @@ export default function TeamPage() {
 
         <div className="space-y-1">
           <label className="block text-sm font-medium" style={{ color: "var(--foreground)" }}>
-            Rol
+            {t.team.roleLabel}
           </label>
           <select
             value={role}
@@ -75,9 +75,9 @@ export default function TeamPage() {
             className="w-full px-4 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#6c4cf6]"
             style={{ background: "var(--surface-elevated)", color: "var(--foreground)", border: "1px solid var(--border)" }}
           >
-            <option value="agent">Agente</option>
-            <option value="manager">Manager</option>
-            <option value="viewer">Viewer (solo lectura)</option>
+            <option value="agent">{t.team.agent}</option>
+            <option value="manager">{t.team.manager}</option>
+            <option value="viewer">{t.team.viewer}</option>
           </select>
         </div>
 
@@ -87,7 +87,7 @@ export default function TeamPage() {
           className="px-6 py-2.5 rounded-lg font-medium text-sm transition-opacity disabled:opacity-60"
           style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
         >
-          {loading ? "Enviando…" : "Enviar invitación"}
+          {loading ? t.team.sending : t.team.sendInvite}
         </button>
       </form>
     </div>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatTimeAgo } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 interface Contact {
   id: string;
@@ -20,6 +21,7 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export default function CrmPage() {
+  const { t, lang } = useLanguage();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -60,15 +62,15 @@ export default function CrmPage() {
       {/* Header */}
       <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
         <div>
-          <h1 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>CRM · Contactos</h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{contacts.length} contactos</p>
+          <h1 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>CRM · {t.crm.contacts}</h1>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{contacts.length} {t.crm.contacts.toLowerCase()}</p>
         </div>
         <div className="flex gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar…"
+            placeholder={lang === "en" ? "Search…" : "Buscar…"}
             className="px-3 py-1.5 text-sm rounded-lg outline-none"
             style={{ background: "var(--surface-elevated)", color: "var(--foreground)", border: "1px solid var(--border)" }}
           />
@@ -77,7 +79,7 @@ export default function CrmPage() {
             className="px-4 py-1.5 text-sm rounded-lg font-medium"
             style={{ background: "var(--primary)", color: "white" }}
           >
-            + Nuevo
+            + {lang === "en" ? "New" : "Nuevo"}
           </button>
         </div>
       </div>
@@ -87,10 +89,10 @@ export default function CrmPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <form onSubmit={createContact} className="w-full max-w-md p-6 rounded-2xl space-y-4"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>Nuevo contacto</h2>
+            <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>{lang === "en" ? "New contact" : "Nuevo contacto"}</h2>
             {[
-              { key: "name", label: "Nombre", type: "text", required: false },
-              { key: "phone", label: "Teléfono (E.164)", type: "tel", required: true },
+              { key: "name", label: lang === "en" ? "Name" : "Nombre", type: "text", required: false },
+              { key: "phone", label: lang === "en" ? "Phone (E.164)" : "Teléfono (E.164)", type: "tel", required: true },
               { key: "email", label: "Email", type: "email", required: false },
             ].map(({ key, label, type, required }) => (
               <div key={key} className="space-y-1">
@@ -107,7 +109,7 @@ export default function CrmPage() {
               </div>
             ))}
             <div className="space-y-1">
-              <label className="text-xs" style={{ color: "var(--muted)" }}>Etapa</label>
+              <label className="text-xs" style={{ color: "var(--muted)" }}>{t.crm.stage}</label>
               <select
                 value={form.stage}
                 onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
@@ -120,12 +122,12 @@ export default function CrmPage() {
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowNew(false)}
                 className="px-4 py-2 text-sm rounded-lg" style={{ background: "var(--surface-elevated)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-                Cancelar
+                {t.common.cancel}
               </button>
               <button type="submit" disabled={saving}
                 className="px-4 py-2 text-sm rounded-lg font-medium disabled:opacity-60"
                 style={{ background: "var(--primary)", color: "white" }}>
-                {saving ? "Guardando…" : "Crear"}
+                {saving ? t.common.loading : lang === "en" ? "Create" : "Crear"}
               </button>
             </div>
           </form>
@@ -138,13 +140,13 @@ export default function CrmPage() {
           <div className="flex items-center justify-center h-48"><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg></div>
         ) : contacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 gap-2" style={{ color: "var(--muted)" }}>
-            <p className="text-sm">{search ? "Sin resultados para esa búsqueda" : "No hay contactos todavía"}</p>
+            <p className="text-sm">{search ? (lang === "en" ? "No results for that search" : "Sin resultados para esa búsqueda") : t.crm.noContacts}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left" style={{ borderColor: "var(--border)" }}>
-                {["Nombre", "Teléfono", "Email", "Etapa", "Última actividad", ""].map((h) => (
+                {[t.crm.name, t.crm.phone, t.crm.email, t.crm.stage, lang === "en" ? "Last activity" : "Última actividad", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 font-medium text-xs" style={{ color: "var(--muted)" }}>{h}</th>
                 ))}
               </tr>
